@@ -82,7 +82,7 @@ public class NPTime implements TabExecutor {
         //Check if command is executed from a player
         if (sender instanceof Player) {
 
-            //Validate player
+            //Validate player55
             Player player = (Player) sender;
             if (!player.hasPermission("NPTime")) {
                 output_results(player, UiHandler.insufficient_permission());
