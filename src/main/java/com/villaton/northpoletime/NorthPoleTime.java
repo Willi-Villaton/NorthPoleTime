@@ -17,18 +17,19 @@ public final class NorthPoleTime extends JavaPlugin {
         command_registration();
 
         if (NPTime.get_running()) {
+
+            getLogger().info("Trying to activate old instance of NPTime.");
             NPTime.start_nptime(null);
         }
 
         //Finished startup
-        getLogger().info("SchematicSorter activated successfully.");
+        getLogger().info("NorthPoleTime activated successfully.");
     }
 
     @Override
     public void onDisable() {
         // Plugin shutdown logic
-        // Plugin shutdown logic
-        Bukkit.getLogger().info("SchematicSorter deactivated successfully.");
+        Bukkit.getLogger().info("NorthPoleTime deactivated successfully.");
     }
 
     private void command_registration() {

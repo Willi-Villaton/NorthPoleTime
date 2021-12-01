@@ -6,6 +6,7 @@ import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.World;
+import org.bukkit.command.BlockCommandSender;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -46,10 +47,6 @@ public class NPTime implements TabExecutor {
         @Override
         public void run() {
 
-            if (time == min_time) {
-                Bukkit.getLogger().info("Tick Tack");
-            }
-
             //Little hold if on highest/lowest point
             if (changing != 0) {
                 changing--;
@@ -80,22 +77,36 @@ public class NPTime implements TabExecutor {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
 
+        World world = null;
+
         //Check if command is executed from a player
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(UiHandler.no_player_error());
-            return true;
+        if (sender instanceof Player) {
+
+            //Validate player
+            Player player = (Player) sender;
+            if (!player.hasPermission("NPTime")) {
+                output_results(player, UiHandler.insufficient_permission());
+                return false;
+            }
+
+            world = player.getWorld();
+        } else {
+
+            //Check if command is executed from commandblock
+            if (sender instanceof BlockCommandSender) {
+
+                BlockCommandSender commandBlock = (BlockCommandSender) sender;
+
+                world = commandBlock.getBlock().getWorld();
+
+            } else {
+                output_results(sender, UiHandler.no_player_error());
+                return false;
+            }
         }
 
-        //Validate player
-        Player player = (Player) sender;
-        if (!player.hasPermission("NPTime")) {
-            output_results(player, UiHandler.insufficient_permission());
-            return false;
-        }
-
-        World world = player.getWorld();
         if (Boolean.TRUE.equals(world.getGameRuleValue(GameRule.DO_DAYLIGHT_CYCLE))) {
-            output_results(player, UiHandler.game_rule_error());
+            output_results(sender, UiHandler.game_rule_error());
             return false;
         }
 
@@ -103,27 +114,26 @@ public class NPTime implements TabExecutor {
 
             boolean result;
             if (timer != null) {
-                result = stop_nptime(player);
+                result = stop_nptime(sender);
             } else {
-                result = start_nptime(player);
+                result = start_nptime(sender);
             }
 
             if (!result) {
-                output_results(player, UiHandler.toggle_error());
+                output_results(sender, UiHandler.toggle_error());
                 return false;
             }
-
             return true;
         }
 
         //Validate arguments
         if (args.length > 2) {
-            output_results(player, UiHandler.too_many_parameters_error());
+            output_results(sender, UiHandler.too_many_parameters_error());
             return false;
         }
 
         if (args.length < 2) {
-            output_results(player, UiHandler.too_few_parameters_error());
+            output_results(sender, UiHandler.too_few_parameters_error());
             return false;
         }
 
@@ -133,23 +143,23 @@ public class NPTime implements TabExecutor {
             min_time = Integer.parseInt(args[0]);
             max_time = Integer.parseInt(args[1]);
         } catch(Exception e) {
-            output_results(player, UiHandler.wrong_parameters_error("Are the given values integers?"));
+            output_results(sender, UiHandler.wrong_parameters_error("Are the given values integers?"));
             return false;
         }
 
         //Wrong min_time
         if (min_time < 0 || min_time > max_time || min_time > 24000) {
-            output_results(player, UiHandler.wrong_parameters_error("The given minimum times seems to be invalid"));
+            output_results(sender, UiHandler.wrong_parameters_error("The given minimum times seems to be invalid"));
             return false;
         }
         //Wrong max_time
         if (max_time > 24000 || (max_time - min_time) < 50) {
-            output_results(player, UiHandler.wrong_parameters_error("The given minimum times seems to be invalid or the values are too close together"));
+            output_results(sender, UiHandler.wrong_parameters_error("The given minimum times seems to be invalid or the values are too close together"));
             return false;
         }
 
         if (!save_config(true, world.getName(), min_time, max_time)) {
-            output_results(player, UiHandler.could_not_save_error());
+            output_results(sender, UiHandler.could_not_save_error());
         }
 
         if (timer != null) {
@@ -157,12 +167,12 @@ public class NPTime implements TabExecutor {
             timer = null;
         }
 
-        start_nptime(player, world, min_time, max_time);
+        start_nptime(sender, world, min_time, max_time);
         return false;
     }
 
 // ----------------------------------------- START ---------------------------------------------------------------------
-    public static boolean start_nptime(Player player) {
+    public static boolean start_nptime(CommandSender sender) {
         String[] config = get_config();
         if (config == null) {
             return false;
@@ -195,24 +205,24 @@ public class NPTime implements TabExecutor {
 
         save_config(true, timer.world.getName(), timer.min_time, timer.max_time);
 
-        output_results(player, UiHandler.toggle_active(world.getName(), min_time, max_time));
+        output_results(sender, UiHandler.toggle_active(world.getName(), min_time, max_time));
         return true;
     }
 
-    public static void start_nptime(Player player, World world, int min_time, int max_time) {
+    public static void start_nptime(CommandSender sender, World world, int min_time, int max_time) {
         timer = new NPTimer(world, min_time, max_time);
-        output_results(player, UiHandler.toggle_active(world.getName(), min_time, max_time));
+        output_results(sender, UiHandler.toggle_active(world.getName(), min_time, max_time));
     }
 
 // ----------------------------------------- STOP ----------------------------------------------------------------------
-    public static boolean stop_nptime(Player player) {
+    public static boolean stop_nptime(CommandSender sender) {
 
         String world_name = timer.world.getName();
         save_config(false, timer.world.getName(), timer.min_time, timer.max_time);
         timer.task.cancel();
         timer = null;
 
-        output_results(player, UiHandler.toggle_inactive(world_name));
+        output_results(sender, UiHandler.toggle_inactive(world_name));
         return true;
     }
 
@@ -298,24 +308,28 @@ public class NPTime implements TabExecutor {
         LinkedList<String> output = new LinkedList<>();
 
         if (args.length == 0) {
-            output.add("<Minimum Time> <Maximum Time>");
+            output.add("<Toggle> / <Minimum Time> <Maximum Time>");
             return output;
         } else {
             return null;
         }
     }
 
-    private static void output_results(Player player, TextComponent[] output) {
-        if (player == null) {
+    private static void output_results(CommandSender sender, TextComponent[] output) {
+        if (sender == null) {
             return;
         }
-
         if (output == null || output.length <= 0) {
             return;
         }
 
+        TextComponent complete = new TextComponent();
+
         for (TextComponent t : output) {
-            player.sendMessage(t);
+
+            complete.addExtra(t);
         }
+
+        sender.sendMessage(complete);
     }
 }
